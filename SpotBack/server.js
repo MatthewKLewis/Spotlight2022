@@ -30,10 +30,11 @@ const app = express();
 const port = process.env.PORT || 5000
 
 //set up mqtt subscriber
-const MQTT_URI = 'mqtt://localhost:1883'
-const testTopic = `silabs/aoa/angle/ble-pd-${MAC_OF_TAG_TO_SHINE}`;
-const topicFormat = "silabs/aoa/angle/"
-var mqttClient = mqtt.connect(MQTT_URI)
+const MQTT_URI = 'ws://52.45.17.177:9001'
+const MQTT_USERNAME = '!@3%4*N]ZY@KfqSJ'
+const MQTT_PASSWORD = '9w#v;7Ma?*:5]W!U'
+const testTopic = `AoA-Test`;
+var mqttClient = mqtt.connect(MQTT_URI, {username: MQTT_USERNAME, password: MQTT_PASSWORD})
 
 //assign middleware
 app.use(cors());
@@ -169,9 +170,10 @@ mqttClient.on("error", () => {
 mqttClient.subscribe([testTopic], { qos: 2 });
 mqttClient.on('message', (topic, message, packet) => {
     try {
-        var targetCoordinates = JSON.parse(message.toString())
+        var msg = JSON.parse(message.toString())
+        console.log(msg);
 
-        let retObj = calculateSpotlightMovement(targetCoordinates.x, targetCoordinates.y)
+        let retObj = calculateSpotlightMovement(msg.pos.x, msg.pos.y)
         let yaw = retObj.yaw;
         let pitch = retObj.pitch;
 
@@ -186,9 +188,8 @@ mqttClient.on('message', (topic, message, packet) => {
             8: 20, //req.body.lum
             9: 0
         }, true)
-        res.status(200).send({ message: "Ok" })
     } catch (error) {
-        res.status(500).send({ message: "Error. Spotlight not initialized. " + error })
+        console.log('MQTT Error: ' + error)
     }
 })
 
