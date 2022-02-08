@@ -3,10 +3,11 @@
 //SPOTLIGHT POSITION
 const SPOTLIGHT_X = 4.529
 const SPOTLIGHT_Y = 1.507
-const SPOTLIGHT_HEIGHT = 1.5
+const SPOTLIGHT_HEIGHT = 3.048
+const SPOTLIGHT_START_ANGLE = 45;
 const MAC_OF_TAG_TO_SHINE = '842E1431C72F'
 
-//DMX Constants
+//DMX Trigonometry Conversion Constants
 const YAW_COEFF = 2.117
 const PITCH_COEFF = .705
 
@@ -14,15 +15,11 @@ const PITCH_COEFF = .705
 const COLOR_RED = 10
 const COLOR_WHITE = 0
 const COLOR_BLUE = 30
-const COLOR_CYAN = 70
-const COLOR_GREEN = 40
-const COLOR_ORANGE = 50
-const COLOR_PURPLE = 60
-const COLOR_YELLOW = 20
 
 //#endregion
 
 //#region [ rgba(000, 255, 000, 0.15) ] DEPENDENCIES: DMX, EXPRESS, MQTT!
+
 const DMXDevice = require('enttec-open-dmx-usb').EnttecOpenDMXUSBDevice
 const express = require('express');
 const cors = require('cors');
@@ -41,9 +38,11 @@ var mqttClient = mqtt.connect(MQTT_URI)
 //assign middleware
 app.use(cors());
 app.use(express.json());
+
 //#endregion
 
 //#region [ rgba(000, 000, 255, 0.15) ] DMX DISCOVERY!
+
 var spotlight = {};
 try {
     DMXDevice.listDevices().then((promise) => {
@@ -52,24 +51,25 @@ try {
                 x: SPOTLIGHT_X,
                 y: SPOTLIGHT_Y,
                 height: SPOTLIGHT_HEIGHT,
-                spotlightOffset: '0',
+                startAngle: SPOTLIGHT_START_ANGLE,
                 assignedTag: '842E1431C72A',
                 channels: new DMXDevice(path)
-            }    
-        console.log(spotlight);
+            }
+            console.log("Device Path @ " + spotlight.channels.port.path);
         })
     }).catch((err) => { console.log(err) })
 } catch {
     console.log('Device Discovery Failed.')
 }
+
 //#endregion
 
 //#region [ rgba(255, 255, 000, 0.15) ] TRIGONOMETRY!
+
 function calculateYawAngle(targetX, targetY,  spotlightX, spotlightY) {
     var opposite = Math.abs(spotlightX - targetX)
     var adjacent = Math.abs(spotlightY - targetY)
     var arcTan = (Math.atan(opposite / adjacent) * (180 / Math.PI))
-    //console.log("Yaw Angle: " + arcTan)
     return arcTan
 }
 function calculatePitchAngle(targetX, targetY, spotlightX, spotlightY) {
@@ -77,94 +77,119 @@ function calculatePitchAngle(targetX, targetY, spotlightX, spotlightY) {
     var adjacent = Math.abs(spotlightY - targetY)
     var hypotenuse = Math.sqrt(Math.pow(opposite, 2) + Math.pow(adjacent, 2))
     var arcTan = (Math.atan(hypotenuse / spotlight.height) * (180 / Math.PI))
-    //console.log("Pitch Angle: " + arcTan)
     return arcTan
 }
 function calculateSpotlightMovement(targetX, targetY) {
-    //temp vars
     var yaw = 0
     var pitch = 0
-    var color = COLOR_WHITE
+
+    yaw = Math.floor(calculateYawAngle(targetX, targetY, spotlight.x, spotlight.y))
+    pitch = Math.floor(calculatePitchAngle(targetX, targetY, spotlight.x, spotlight.y))
+
+    //YAW: From Tangent to Clockface
     if (targetY <= spotlight.y && targetX > spotlight.x) {
-        //console.log('top right of screen')
-        yaw = Math.floor(calculateYawAngle(targetX, targetY, spotlight.x, spotlight.y) / YAW_COEFF)
-        pitch = 128 - Math.floor(calculatePitchAngle(targetX, targetY, spotlight.x, spotlight.y) / PITCH_COEFF)
+        //console.log('│  Top right of screen')
+        //do nothing!
     } else if (targetY > spotlight.y && targetX > spotlight.x) {
-        //console.log('bot right of screen')
-        yaw = 43 + (43 - (Math.floor(calculateYawAngle(targetX, targetY, spotlight.x, spotlight.y) / YAW_COEFF)))
-        pitch = 128 - Math.floor(calculatePitchAngle(targetX, targetY, spotlight.x, spotlight.y) / PITCH_COEFF)
-    } else if (targetY <= spotlight.y && targetX <= spotlight.x) {
-        //console.log('top left of screen')
-        yaw = 43 + (43 - (Math.floor(calculateYawAngle(targetX, targetY, spotlight.x, spotlight.y) / YAW_COEFF)))
-        pitch = 128 + Math.floor(calculatePitchAngle(targetX, targetY, spotlight.x, spotlight.y) / PITCH_COEFF)
+        //console.log('│  Bottom right of screen')
+        yaw = (90 + (90 - yaw))
     } else if (targetY > spotlight.y && targetX <= spotlight.x) {
-        //console.log('bot left of screen')
-        yaw = Math.floor(calculateYawAngle(targetX, targetY, spotlight.x, spotlight.y) / YAW_COEFF)
-        pitch = 128 + Math.floor(calculatePitchAngle(targetX, targetY, spotlight) / PITCH_COEFF)
+        //console.log('│  Bottom left of screen')
+        yaw = 180 + yaw
+    } else if (targetY <= spotlight.y && targetX <= spotlight.x) {
+        //console.log('│  Top left of screen')
+        yaw = (270 + (90 - yaw))
     }
+    console.log('┌─────────  '  + targetX.toFixed(2) + "m " + targetY.toFixed(2) + "m. ─────────")
+    console.log("│  Yaw: " + yaw) // + ", Pitch: " + pitch)
+    yaw = (yaw - spotlight.startAngle);
+    console.log("│  Yaw - Start Angle: " + yaw) // + ", Pitch: " + pitch)
+    yaw = wrapIndex(yaw, 360)
+    console.log("│  Yaw - Start Angle, Wrapped: " + yaw) // + ", Pitch: " + pitch)
 
-    //90 DEGREE OFFSET CALIBRATION
-    if (spotlight.spotlightOffset == '90') {
-        yaw += 42
-    } else if (spotlight.spotlightOffset == '180') {
-        yaw += 84
-    } else if (spotlight.spotlightOffset == '270') {
-        yaw -= 42
-    }
+    //PITCH, FLIPPED!:
+    console.log("│  --- ")
+    console.log("│  Pitch: " + pitch)
+    pitch = 90 - pitch;
+    console.log("│  90 minus Pitch: " + pitch)
+    pitch = wrapIndex(pitch, 179)
+    console.log("│  Pitch, Wrapped: " + pitch) // + ", Pitch: " + pitch)
+    console.log('└─────────────────────────────────');
 
-    return [yaw, pitch];
+    //Rectify yaw's 360° and pitch's 180° to 255
+    yaw = yaw / YAW_COEFF
+    pitch = pitch / PITCH_COEFF
+
+    return {yaw: yaw, pitch: pitch};
 }
+function wrapIndex(i, i_max) {
+    return ((i % i_max) + i_max) % i_max;
+ }
+
 //#endregion
 
 //#region [ rgba(000, 255, 255, 0.15) ] HTTP ROUTES!
+
 app.route('/api/move/:id').post((req, res) => {
     try {
-        console.log('Command for Spotlight '  + req.body.x.toFixed(2) + "m " + req.body.y.toFixed(2) + "m.")
-        yawPitch = [0,0]
-        yawPitch = calculateSpotlightMovement(req.body.x, req.body.y)
+        let retObj = calculateSpotlightMovement(req.body.x, req.body.y)
+        let yaw = retObj.yaw;
+        let pitch = retObj.pitch;
+
         spotlight.channels.setChannels({
-            1: yawPitch[0],
-            2: 0, //yaw fine tune
-            3: yawPitch[1],
-            4: 0, //pitch fine tune
+            1: yaw,
+            2: 0,
+            3: pitch,
+            4: 0,
             5: 0, //gobo
             6: COLOR_WHITE,
             7: 0, //strobe
-            8: 30, //req.body.lum
+            8: 20, //req.body.lum
             9: 0
-        }, true) //TEST
+        }, true)
         res.status(200).send({ message: "Ok" })
     } catch (error) {
-        res.status(500).send({ message: "Error. Spotlight not initialized. " + error })
+        res.status(500).send({ message: "Error. " + error })
     }
 });
 app.listen(port, () => {
     console.log(`Listening on port ${port}.`)
 });
+
 //#endregion
 
 //#region [ rgba(255, 000, 255, 0.15) ] MQTT ROUTES!
+
 mqttClient.on("connect", () => {
-    console.log('mqtt connected')
+    console.log('mqtt connected \n')
 })
 mqttClient.on("error", () => {
     console.log('mqtt error')
 })
 mqttClient.subscribe([testTopic], { qos: 2 });
 mqttClient.on('message', (topic, message, packet) => {
-    var targetCoordinates = JSON.parse(message.toString())
-    console.log(targetCoordinates);
-    yawPitch = calculateSpotlightMovement(targetCoordinates.x, targetCoordinates.y)
-    spotlightToMove.device.setChannels({
-        1: yawPitch[0],
-        2: 0, //yaw fine tune
-        3: yawPitch[1],
-        4: 0, //pitch fine tune
-        5: 0, //gobo
-        6: COLOR_WHITE, //gobo
-        7: 0, //strobe
-        8: 20, //req.body.lum
-        9: 0
-    }, true)
+    try {
+        var targetCoordinates = JSON.parse(message.toString())
+
+        let retObj = calculateSpotlightMovement(targetCoordinates.x, targetCoordinates.y)
+        let yaw = retObj.yaw;
+        let pitch = retObj.pitch;
+
+        spotlight.channels.setChannels({
+            1: yaw,
+            2: 0,
+            3: pitch,
+            4: 0,
+            5: 0, //gobo
+            6: COLOR_WHITE,
+            7: 0, //strobe
+            8: 20, //req.body.lum
+            9: 0
+        }, true)
+        res.status(200).send({ message: "Ok" })
+    } catch (error) {
+        res.status(500).send({ message: "Error. Spotlight not initialized. " + error })
+    }
 })
+
 //#endregion
