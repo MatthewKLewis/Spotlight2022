@@ -6,10 +6,9 @@ import { Observable } from 'rxjs';
   providedIn: 'root',
 })
 export class SpotlightService {
-  constructor(private http: HttpClient) { }
+  constructor(private http: HttpClient) {}
 
   testSpotlight(id: number, dmxObject: any): Observable<any> {
-    return this.http.post(`http://localhost:5000/api/move/${id}`, dmxObject);
+    return this.http.post(`/api/move/${id}`, dmxObject);
   }
-
 }

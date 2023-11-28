@@ -29,13 +29,13 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 //set up mqtt subscriber
-const MQTT_URI = "ws://localhost:9001"; //ws://52.45.17.177:9001
-//const MQTT_USERNAME = '!@3%4*N]ZY@KfqSJ'
-//const MQTT_PASSWORD = '9w#v;7Ma?*:5]W!U'
-const testTopic = `AoA-Test`;
+const MQTT_URI = "ws://3.212.201.170:9001"; //ws://52.45.17.177:9001
+const MQTT_USERNAME = "!@3%4*N]ZY@KfqSJ";
+const MQTT_PASSWORD = "9w#v;7Ma?*:5]W!U";
+const testTopic = `AoA-WRONGTOPIC`;
 var mqttClient = mqtt.connect(MQTT_URI, {
-	//username: MQTT_USERNAME,
-	//password: MQTT_PASSWORD,
+	username: MQTT_USERNAME,
+	password: MQTT_PASSWORD,
 });
 
 //assign middleware
@@ -150,6 +150,7 @@ function wrapIndex(i, i_max) {
 app.route("/api/move/:id").post((req, res) => {
 	try {
 		let retObj = calculateSpotlightMovement(req.body.x, req.body.y);
+		retObj = calculateSpotlightMovement(9, -7);
 		let yaw = retObj.yaw;
 		let pitch = retObj.pitch;
 
@@ -162,7 +163,7 @@ app.route("/api/move/:id").post((req, res) => {
 				5: 0, //gobo
 				6: COLOR_WHITE,
 				7: 0, //strobe
-				8: 20, //req.body.lum
+				8: 80, //req.body.lum
 				9: 0,
 			},
 			true
@@ -193,6 +194,7 @@ mqttClient.on("message", (topic, message, packet) => {
 		console.log(msg);
 
 		let retObj = calculateSpotlightMovement(msg.pos.x, msg.pos.y);
+		retObj = calculateSpotlightMovement(-4, -3);
 		let yaw = retObj.yaw;
 		let pitch = retObj.pitch;
 
@@ -205,7 +207,7 @@ mqttClient.on("message", (topic, message, packet) => {
 				5: 0, //gobo
 				6: COLOR_WHITE,
 				7: 0, //strobe
-				8: 20, //req.body.lum
+				8: 80, //req.body.lum
 				9: 0,
 			},
 			true
